@@ -1,0 +1,8 @@
+{
+  "title": "UR MVP",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": []
+}

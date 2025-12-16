@@ -1,0 +1,23 @@
+CREATE SCHEMA IF NOT EXISTS raw;
+CREATE SCHEMA IF NOT EXISTS mart;
+
+CREATE TABLE IF NOT EXISTS raw.taxi (
+
+);
+
+CREATE TABLE IF NOT EXISTS raw.lt (
+
+);
+
+CREATE TABLE IF NOT EXISTS raw.dist_cent (
+
+);
+
+CREATE TABLE IF NOT EXISTS mart.ur_flow (
+
+);
+
+
+CREATE TABLE IF NOT EXISTS mart.deficit_by_area (
+
+);
