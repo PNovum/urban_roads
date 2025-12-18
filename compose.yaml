@@ -45,11 +45,13 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_DEFAULT_REGION: us-east-1
     command: >
       mlflow server
       --host 0.0.0.0
       --port 5000
       --serve-artifacts
+      --artifacts-destination ${MLFLOW_ARTIFACT_ROOT}
       --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5051,127.0.0.1,127.0.0.1:5051
       --cors-allowed-origins *
     ports:
@@ -71,9 +73,18 @@ services:
       BUCKET_MIN: ${BUCKET_MIN}
       DELTA_THRESHOLD_MIN: ${DELTA_THRESHOLD_MIN}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_EXPERIMENT: ${MLFLOW_EXPERIMENT}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ./data:/data
-    command: ["python","run.py"]
+    command: >
+      sh -lc "
+      mc alias set urminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb -p urminio/mlflow || true &&
+      python run.py
+      "
+
 
   api:
     build:
@@ -105,3 +116,4 @@ services:
 volumes:
   pg_data:
   minio_data:
+  grafana_data:

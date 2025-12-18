@@ -4,11 +4,11 @@ datasources:
     type: postgres
     access: proxy
     url: postgres:5432
-    database: urmvp
     user: urmvp
     secureJsonData:
       password: urmvp
     jsonData:
+      database: urmvp
       sslmode: "disable"
       postgresVersion: 1600
     isDefault: true

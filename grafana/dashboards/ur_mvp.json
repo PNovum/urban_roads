@@ -1,8 +1,640 @@
 {
-  "title": "UR MVP",
-  "timezone": "browser",
-  "schemaVersion": 39,
-  "version": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "description": "Где модель видит высокий потенциальный спрос, хотя фактических поездок пока не было",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT *\r\nFROM mart.ur_link_scores_latest\r\nWHERE trip_cnt = 0 AND p_demand > 0.7\r\nORDER BY p_demand DESC\r\nLIMIT 200;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Где высокий потенциальный спрос",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH last AS (\r\n  SELECT max(run_ts) AS run_ts\r\n  FROM mart.ur_link_scores\r\n)\r\nSELECT\r\n  dc.name AS name_end,\r\n  round(avg(s.p_demand)::numeric, 3) AS avg_p_in,\r\n  round(sum(s.p_demand)::numeric, 3) AS total_p_in,\r\n  count(*) FILTER (WHERE s.p_demand > 0.7) AS strong_links\r\nFROM mart.ur_link_scores s\r\nJOIN last t ON s.run_ts = t.run_ts\r\nJOIN raw.dist_cent dc\r\n  ON dc.no = s.no_end\r\nGROUP BY dc.name\r\nORDER BY total_p_in DESC\r\nLIMIT 30;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Топ районов по входящему спросу (по NAME конца)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH last AS (\r\n  SELECT max(run_ts) AS run_ts\r\n  FROM mart.ur_link_scores\r\n)\r\nSELECT\r\n  l.name AS name_start,\r\n  round(avg(s.p_demand)::numeric, 3) AS avg_p_out,\r\n  round(sum(s.p_demand)::numeric, 3) AS total_p_out,\r\n  count(*) FILTER (WHERE s.p_demand > 0.7) AS strong_links\r\nFROM mart.ur_link_scores s\r\nJOIN last t ON s.run_ts = t.run_ts\r\nJOIN mart.no_links l\r\n  ON l.no_start = s.no_start AND l.no_end = s.no_end\r\nGROUP BY l.name\r\nORDER BY total_p_out DESC\r\nLIMIT 30;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Топ районов по исходящему спросу (по NAME)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "description": "Куда чаще всего хотят ехать",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\r\n  no_end,\r\n  avg(p_demand) AS avg_in_demand,\r\n  sum(p_demand) AS total_in_demand\r\nFROM mart.ur_link_scores\r\nWHERE run_ts = (SELECT max(run_ts) FROM mart.ur_link_scores)\r\nGROUP BY no_end\r\nORDER BY total_in_demand DESC;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Входящий спрос",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "description": "Поездок ещё нет, но вероятность высокая",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH last AS (\r\n  SELECT max(run_ts) AS run_ts\r\n  FROM mart.ur_link_scores\r\n)\r\nSELECT\r\n  s.no_start,\r\n  l.name AS name_start,\r\n  s.no_end,\r\n  round(s.p_demand::numeric, 3) AS p_demand,\r\n  round(s.distance_km::numeric, 2) AS distance_km,\r\n  COALESCE(l.trip_cnt, 0) AS trip_cnt\r\nFROM mart.ur_link_scores s\r\nJOIN last t ON s.run_ts = t.run_ts\r\nJOIN mart.no_links l\r\n  ON l.no_start = s.no_start AND l.no_end = s.no_end\r\nWHERE COALESCE(l.trip_cnt, 0) = 0\r\n  AND s.p_demand > 0.7\r\nORDER BY s.p_demand DESC\r\nLIMIT 200;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Высокий латентный спрос",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH last AS (\r\n  SELECT max(run_ts) AS run_ts\r\n  FROM mart.ur_link_scores\r\n)\r\nSELECT\r\n  s.no_start,\r\n  s.no_end,\r\n  round(s.p_demand::numeric, 3) AS p_demand,\r\n  round(s.distance_km::numeric, 2) AS distance_km\r\nFROM mart.ur_link_scores s\r\nJOIN last l ON s.run_ts = l.run_ts\r\nORDER BY s.p_demand DESC\r\nLIMIT 200;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Наиболее прогнозируемые связи спроса (p_demand)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P09503FC11583AE68"
+      },
+      "description": "Где район «генерирует» поездки",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "urmvp",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "af7fazmfoo7i8e"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\r\n  no_start,\r\n  avg(p_demand) AS avg_out_demand,\r\n  sum(p_demand) AS total_out_demand\r\nFROM mart.ur_link_scores\r\nWHERE run_ts = (SELECT max(run_ts) FROM mart.ur_link_scores)\r\nGROUP BY no_start\r\nORDER BY total_out_demand DESC;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Исходящий спрос по району",
+      "type": "table"
+    }
+  ],
+  "preload": false,
   "refresh": "30s",
-  "panels": []
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "UR MVP",
+  "uid": "aadfb494-7020-4f87-81c7-e7d377425889",
+  "version": 2
 }

@@ -156,3 +156,15 @@ SELECT *
 FROM mart.ur_model_runs
 WHERE run_ts = (SELECT max(run_ts) FROM mart.ur_model_runs);
 
+CREATE TABLE IF NOT EXISTS mart.ur_link_scores (
+  run_ts      TIMESTAMPTZ NOT NULL,
+  no_start    BIGINT NOT NULL,
+  no_end      BIGINT NOT NULL,
+  p_demand    DOUBLE PRECISION NOT NULL,
+  distance_km DOUBLE PRECISION NOT NULL,
+  PRIMARY KEY (run_ts, no_start, no_end)
+);
+CREATE INDEX IF NOT EXISTS ur_link_scores_no_start_idx ON mart.ur_link_scores (no_start);
+CREATE INDEX IF NOT EXISTS ur_link_scores_no_end_idx ON mart.ur_link_scores (no_end);
+CREATE INDEX IF NOT EXISTS ur_link_scores_p_demand_idx ON mart.ur_link_scores (p_demand);
+
