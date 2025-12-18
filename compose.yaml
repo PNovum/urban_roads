@@ -31,7 +31,8 @@ services:
       - minio_data:/data
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:latest
+    build:
+      context: ./apps/mlflow
     container_name: ur-mlflow
     depends_on:
       postgres:
@@ -49,6 +50,8 @@ services:
       --host 0.0.0.0
       --port 5000
       --serve-artifacts
+      --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5051,127.0.0.1,127.0.0.1:5051
+      --cors-allowed-origins *
     ports:
       - "${MLFLOW_PORT:-5051}:5000"
 
@@ -70,7 +73,7 @@ services:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
     volumes:
       - ./data:/data
-    command: ["python", "refresh.py", "--help"]
+    command: ["python","run.py"]
 
   api:
     build:
