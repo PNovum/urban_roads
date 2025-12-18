@@ -1,5 +1,7 @@
-pandas==2.2.3
-openpyxl==3.1.5
-SQLAlchemy==2.0.36
-psycopg[binary]==3.2.3
-python-dateutil==2.9.0.post0
+pandas
+numpy
+psycopg[binary]
+mlflow
+scikit-learn
+joblib
+requests
