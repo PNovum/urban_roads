@@ -16,9 +16,13 @@ def main() -> None:
 
     args = p.parse_args()
 
-    if args.all or not (args.refresh or args.train or args.infer):
+    if args.all:
         args.refresh = True
         args.train = True
+        args.infer = True
+
+    if not (args.refresh or args.train or args.infer):
+        args.refresh = True
         args.infer = True
 
     if args.refresh:
