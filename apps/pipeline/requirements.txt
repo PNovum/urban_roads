@@ -1,5 +1,7 @@
 pandas
 numpy
-scikit-learn
-mlflow
 psycopg[binary]
+mlflow
+scikit-learn
+joblib
+requests
