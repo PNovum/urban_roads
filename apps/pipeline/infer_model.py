@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from io import StringIO
+from pathlib import Path
 
 import joblib
 import mlflow
 import numpy as np
+import pandas as pd
 import psycopg
 
 
@@ -22,43 +23,6 @@ FEATURE_COLS = (
     + [f"feature_{i}_end" for i in range(1, 23)]
     + ["x_start", "y_start", "x_end", "y_end"]
 )
-
-
-def build_X_and_dist(rows: list[tuple], col_idx: dict[str, int]) -> tuple[np.ndarray, np.ndarray]:
-    X = np.empty((len(rows), len(FEATURE_COLS) + 1), dtype=np.float32)
-    dist = np.empty((len(rows),), dtype=np.float32)
-
-    ix_xs = FEATURE_COLS.index("x_start")
-    ix_ys = FEATURE_COLS.index("y_start")
-    ix_xe = FEATURE_COLS.index("x_end")
-    ix_ye = FEATURE_COLS.index("y_end")
-
-    for r_i, r in enumerate(rows):
-        for j, c in enumerate(FEATURE_COLS):
-            v = r[col_idx[c]]
-            X[r_i, j] = 0.0 if v is None else float(v)
-
-        xs = X[r_i, ix_xs]
-        ys = X[r_i, ix_ys]
-        xe = X[r_i, ix_xe]
-        ye = X[r_i, ix_ye]
-        d = float(np.sqrt((xs - xe) ** 2 + (ys - ye) ** 2))
-        dist[r_i] = d
-        X[r_i, len(FEATURE_COLS)] = d
-
-    return X, dist
-
-
-def copy_scores(cur, rows: list[tuple]) -> None:
-    buf = StringIO()
-    for r in rows:
-        buf.write(",".join(str(x) for x in r))
-        buf.write("\n")
-    buf.seek(0)
-    with cur.copy(
-        'COPY mart.ur_link_scores (run_ts, no_start, no_end, p_demand, distance_km) FROM STDIN WITH CSV'
-    ) as cp:
-        cp.write(buf.getvalue())
 
 
 def load_latest_model_from_mlflow() -> dict:
@@ -87,72 +51,116 @@ def load_latest_model_from_mlflow() -> dict:
     return {"run_id": run_id, "payload": joblib.load(model_path)}
 
 
+def fetch_dist_cent(conn) -> pd.DataFrame:
+    q = """
+    SELECT
+      no, name,
+      feature_1, feature_2, feature_3, feature_4, feature_5,
+      feature_6, feature_7, feature_8, feature_9, feature_10,
+      feature_11, feature_12, feature_13, feature_14, feature_15,
+      feature_16, feature_17, feature_18, feature_19, feature_20,
+      feature_21, feature_22,
+      x, y
+    FROM raw.dist_cent
+    """
+    with conn.cursor() as cur:
+        cur.execute(q)
+        cols = [d.name for d in cur.description]
+        rows = cur.fetchall()
+    return pd.DataFrame(rows, columns=cols)
+
+
+def build_X(df: pd.DataFrame) -> np.ndarray:
+    xs = df["x_start"].to_numpy(dtype=np.float32)
+    ys = df["y_start"].to_numpy(dtype=np.float32)
+    xe = df["x_end"].to_numpy(dtype=np.float32)
+    ye = df["y_end"].to_numpy(dtype=np.float32)
+    dist = np.sqrt((xs - xe) ** 2 + (ys - ye) ** 2).astype(np.float32)
+
+    X = np.empty((len(df), len(FEATURE_COLS) + 1), dtype=np.float32)
+    for j, c in enumerate(FEATURE_COLS):
+        X[:, j] = df[c].to_numpy(dtype=np.float32)
+    X[:, len(FEATURE_COLS)] = dist
+    return X
+
+
 def main() -> None:
-    batch_size = int(os.getenv("INFER_BATCH_SIZE", "50000"))
     dsn = get_db_dsn()
+    data_dir = Path(os.getenv("DATA_DIR", "/data"))
+    taxi_path = data_dir / "taxi.csv"
+
+    taxi = pd.read_csv(taxi_path)
+    taxi["no_start"] = pd.to_numeric(taxi.get("no_start"), errors="coerce")
+    taxi["no_end"] = pd.to_numeric(taxi.get("no_end"), errors="coerce")
+    taxi = taxi.dropna(subset=["no_start", "no_end"])
+    taxi["no_start"] = taxi["no_start"].astype("int64")
+    taxi["no_end"] = taxi["no_end"].astype("int64")
+
+    with psycopg.connect(dsn) as conn:
+        dist = fetch_dist_cent(conn)
+
+    dist["no"] = dist["no"].astype("int64")
+    dist = dist.drop_duplicates(subset=["no"])
+
+    a = dist.rename(
+        columns={
+            "no": "no_start",
+            "x": "x_start",
+            "y": "y_start",
+            **{f"feature_{i}": f"feature_{i}_start" for i in range(1, 23)},
+        }
+    )
+    b = dist.rename(
+        columns={
+            "no": "no_end",
+            "x": "x_end",
+            "y": "y_end",
+            **{f"feature_{i}": f"feature_{i}_end" for i in range(1, 23)},
+        }
+    )
+
+    df = taxi.merge(a, on="no_start", how="left").merge(b, on="no_end", how="left")
+    for c in FEATURE_COLS:
+        if c not in df.columns:
+            df[c] = 0.0
+    df[FEATURE_COLS] = df[FEATURE_COLS].apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
     model_info = load_latest_model_from_mlflow()
-    model_run_id = model_info["run_id"]
     payload = model_info["payload"]
     scaler = payload["scaler"]
     clf = payload["clf"]
+    thr = float(payload.get("threshold", float(os.getenv("INFER_THRESHOLD", "0.7"))))
+
+    X = build_X(df)
+    Xs = scaler.transform(X)
+    proba = clf.predict_proba(Xs)[:, 1].astype(np.float32)
+    trip_cnt_pred = (proba >= thr).astype(np.int64)
 
     run_ts = datetime.now(timezone.utc)
+    out = pd.DataFrame(
+        {
+            "run_ts": run_ts.isoformat(),
+            "no_start": df["no_start"].astype("int64"),
+            "no_end": df["no_end"].astype("int64"),
+            "trip_cnt_pred": trip_cnt_pred.astype("int64"),
+        }
+    )
 
-    select_sql = f"""
-      SELECT
-        no_start, no_end,
-        {", ".join(FEATURE_COLS)}
-      FROM mart.no_links
-      ORDER BY no_start, no_end
-    """
+    filled = taxi.copy()
+    filled["trip_cnt"] = trip_cnt_pred.astype("int64")
+    filled_path = data_dir / "taxi_filled.csv"
+    filled.to_csv(filled_path, index=False)
 
     with psycopg.connect(dsn) as conn:
-        with conn.cursor() as curw:
-            curw.execute("DELETE FROM mart.ur_link_scores WHERE run_ts = %s", (run_ts,))
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM mart.ur_trip_preds WHERE run_ts = %s", (run_ts,))
+            rows = list(out.itertuples(index=False, name=None))
+            buf = "\n".join(",".join(map(str, r)) for r in rows) + "\n"
+            with cur.copy(
+                "COPY mart.ur_trip_preds (run_ts, no_start, no_end, trip_cnt_pred) FROM STDIN WITH CSV"
+            ) as cp:
+                cp.write(buf)
         conn.commit()
-
-        with psycopg.connect(dsn) as connr:
-            with connr.cursor(name="stream_no_links_infer") as cur:
-                cur.itersize = batch_size
-                cur.execute(select_sql)
-
-                cols = [d.name for d in cur.description]
-                col_idx = {c: i for i, c in enumerate(cols)}
-
-                out_rows: list[tuple] = []
-
-                while True:
-                    rows = cur.fetchmany(batch_size)
-                    if not rows:
-                        break
-
-                    X, dist = build_X_and_dist(rows, col_idx)
-                    Xs = scaler.transform(X)
-                    proba = clf.predict_proba(Xs)[:, 1].astype(float)
-
-                    for i, r in enumerate(rows):
-                        no_start = int(r[col_idx["no_start"]])
-                        no_end = int(r[col_idx["no_end"]])
-                        p = float(proba[i])
-                        d = float(dist[i])
-                        out_rows.append((run_ts.isoformat(), no_start, no_end, p, d))
-
-                    if len(out_rows) >= batch_size:
-                        with psycopg.connect(dsn) as connw:
-                            with connw.cursor() as curw:
-                                copy_scores(curw, out_rows)
-                            connw.commit()
-                        out_rows = []
-
-                if out_rows:
-                    with psycopg.connect(dsn) as connw:
-                        with connw.cursor() as curw:
-                            copy_scores(curw, out_rows)
-                        connw.commit()
-
-    if os.getenv("MLFLOW_TRACKING_URI", "").strip():
-        mlflow.set_tag("ur_infer_model_run_id", model_run_id)
 
 
 if __name__ == "__main__":

@@ -13,17 +13,15 @@ def main() -> None:
     p.add_argument("--train", action="store_true")
     p.add_argument("--infer", action="store_true")
     p.add_argument("--all", action="store_true")
-
     args = p.parse_args()
 
     if args.all:
         args.refresh = True
         args.train = True
-        args.infer = True
+        args.infer = False
 
-    if not (args.refresh or args.train or args.infer):
-        args.refresh = True
-        args.infer = True
+    if not (args.refresh or args.train or args.infer or args.all):
+        raise SystemExit("Use --refresh / --train / --infer / --all")
 
     if args.refresh:
         refresh()

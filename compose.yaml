@@ -67,11 +67,11 @@ services:
         condition: service_healthy
       mlflow:
         condition: service_started
+      minio:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL}
       DATA_DIR: /data
-      BUCKET_MIN: ${BUCKET_MIN}
-      DELTA_THRESHOLD_MIN: ${DELTA_THRESHOLD_MIN}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_EXPERIMENT: ${MLFLOW_EXPERIMENT}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -82,8 +82,9 @@ services:
       sh -lc "
       mc alias set urminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
       mc mb -p urminio/mlflow || true &&
-      python run.py
+      tail -f /dev/null
       "
+
 
 
   api:

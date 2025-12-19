@@ -1,11 +1,11 @@
 refresh:
 	docker compose run --rm pipeline python run.py --refresh
 
-infer:
-	docker compose run --rm pipeline python run.py --infer
-
 train:
 	docker compose run --rm pipeline python run.py --train
+
+infer:
+	docker compose run --rm pipeline python run.py --infer
 
 all:
 	docker compose run --rm pipeline python run.py --all

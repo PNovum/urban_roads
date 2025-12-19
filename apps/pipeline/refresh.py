@@ -9,9 +9,9 @@ import psycopg
 
 
 def get_db_dsn() -> str:
-    url = os.getenv("DATABASE_URL", "")
+    url = os.getenv("DATABASE_URL", "").strip()
     if url.startswith("postgresql+psycopg://"):
-        return "postgresql://" + url[len("postgresql+psycopg://") :]
+        url = "postgresql://" + url[len("postgresql+psycopg://") :]
     return url
 
 
@@ -29,21 +29,17 @@ def refresh() -> None:
 
     dist = pd.read_csv(data_dir / "dist_cent.csv")
     taxi = pd.read_csv(data_dir / "taxi.csv")
-    lt = pd.read_csv(data_dir / "lt.csv")
-
-    lt = lt[
-        [c for c in ["start_district_nm", "end_district_nm", "transport_type", "vehicle_type", "trip_cnt", "trip_dur"]
-        if c in lt.columns]
-    ]
-
 
     dist = dist.rename(columns={"NO": "no", "NAME": "name"})
-    dist["no"] = pd.to_numeric(dist["no"], errors="coerce").astype("Int64")
+    dist["no"] = pd.to_numeric(dist["no"], errors="coerce")
     dist = dist.dropna(subset=["no"])
     dist["no"] = dist["no"].astype("int64")
 
     for i in range(1, 23):
         dist[f"feature_{i}"] = pd.to_numeric(dist.get(f"Признак {i}"), errors="coerce")
+
+    dist["x"] = pd.to_numeric(dist.get("x"), errors="coerce")
+    dist["y"] = pd.to_numeric(dist.get("y"), errors="coerce")
 
     dist = dist[
         ["fid", "no", "name"]
@@ -51,30 +47,28 @@ def refresh() -> None:
         + ["x", "y"]
     ].drop_duplicates(subset=["no"])
 
-    taxi["no_start"] = pd.to_numeric(taxi["no_start"], errors="coerce").astype("Int64")
-    taxi["no_end"] = pd.to_numeric(taxi["no_end"], errors="coerce").astype("Int64")
+    taxi["no_start"] = pd.to_numeric(taxi.get("no_start"), errors="coerce")
+    taxi["no_end"] = pd.to_numeric(taxi.get("no_end"), errors="coerce")
     taxi = taxi.dropna(subset=["no_start", "no_end"])
     taxi["no_start"] = taxi["no_start"].astype("int64")
     taxi["no_end"] = taxi["no_end"].astype("int64")
 
-    taxi = taxi[
-        [c for c in ["no_start", "no_end", "transport_type", "vehicle_type", "trip_cnt", "session_dur"]
-        if c in taxi.columns]
-    ]
+    taxi["trip_cnt"] = pd.to_numeric(taxi.get("trip_cnt"), errors="coerce")
+    taxi["session_dur"] = pd.to_numeric(taxi.get("session_dur"), errors="coerce")
 
+    keep = ["no_start", "no_end", "transport_type", "vehicle_type", "trip_cnt", "session_dur"]
+    taxi = taxi[[c for c in keep if c in taxi.columns]]
 
     dsn = get_db_dsn()
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute("TRUNCATE raw.dist_cent;")
             cur.execute("TRUNCATE raw.taxi RESTART IDENTITY;")
-            cur.execute("TRUNCATE raw.lt RESTART IDENTITY;")
             cur.execute("TRUNCATE mart.taxi_agg;")
             cur.execute("TRUNCATE mart.no_links;")
 
             copy_df(cur, dist, "raw.dist_cent")
             copy_df(cur, taxi, "raw.taxi")
-            copy_df(cur, lt, "raw.lt")
 
             cur.execute("""
                 INSERT INTO mart.taxi_agg
