@@ -8,13 +8,6 @@ import mlflow
 import numpy as np
 import psycopg
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import (
-    average_precision_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
 from sklearn.preprocessing import StandardScaler
 
 
@@ -53,9 +46,29 @@ def rows_to_xy(rows: list[tuple], col_idx: dict[str, int]) -> tuple[np.ndarray, 
         X[r_i, len(FEATURE_COLS)] = float(np.sqrt((xs - xe) ** 2 + (ys - ye) ** 2))
 
         trip = r[col_idx["trip_cnt"]]
-        y[r_i] = 1 if (trip is not None and float(trip) > 0.0) else 0
+        tv = 0.0 if trip is None else float(trip)
+        y[r_i] = 1 if tv >= 1.0 else 0
 
     return X, y
+
+
+def mape_bin(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    yt = y_true.astype(np.float32)
+    yp = y_pred.astype(np.float32)
+    denom = np.maximum(yt, 1.0)
+    return float(np.mean(np.abs(yt - yp) / denom))
+
+
+def best_threshold(y_true: np.ndarray, proba: np.ndarray) -> tuple[float, float]:
+    best_t = 0.5
+    best_m = 1e9
+    for t in np.linspace(0.05, 0.95, 19):
+        pred = (proba >= t).astype(np.int8)
+        m = mape_bin(y_true, pred)
+        if m < best_m:
+            best_m = m
+            best_t = float(t)
+    return best_t, float(best_m)
 
 
 def main() -> None:
@@ -68,7 +81,6 @@ def main() -> None:
 
     batch_size = int(os.getenv("TRAIN_BATCH_SIZE", "50000"))
     holdout_size = int(os.getenv("TRAIN_HOLDOUT_ROWS", "200000"))
-
     dsn = get_db_dsn()
 
     with psycopg.connect(dsn) as conn:
@@ -110,7 +122,7 @@ def main() -> None:
     """
 
     with mlflow.start_run() as run:
-        mlflow.log_param("model", "sgd_log_loss_streaming_sample_weight")
+        mlflow.log_param("model", "sgd_log_loss_streaming")
         mlflow.log_param("batch_size", batch_size)
         mlflow.log_param("holdout_size", holdout_size)
         mlflow.log_param("total_rows", total_rows)
@@ -119,14 +131,14 @@ def main() -> None:
         mlflow.log_metric("w1", float(w1))
 
         with psycopg.connect(dsn) as conn:
-            with conn.cursor(name="stream_no_links") as cur:
+            with conn.cursor(name="stream_no_links_train") as cur:
                 cur.itersize = batch_size
                 cur.execute(train_query)
 
                 cols = [d.name for d in cur.description]
                 col_idx = {c: i for i, c in enumerate(cols)}
 
-                first_batch = True
+                first = True
                 while True:
                     rows = cur.fetchmany(batch_size)
                     if not rows:
@@ -138,37 +150,27 @@ def main() -> None:
                     scaler.partial_fit(Xb)
                     Xb_s = scaler.transform(Xb)
 
-                    if first_batch:
+                    if first:
                         clf.partial_fit(Xb_s, yb, classes=classes, sample_weight=sw)
-                        first_batch = False
+                        first = False
                     else:
                         clf.partial_fit(Xb_s, yb, sample_weight=sw)
 
                     seen += len(rows)
 
         Xh_s = scaler.transform(X_hold)
-        proba = clf.predict_proba(Xh_s)[:, 1]
-        pred = (proba >= 0.5).astype(int)
+        proba = clf.predict_proba(Xh_s)[:, 1].astype(np.float32)
 
-        roc_auc = float(roc_auc_score(y_hold, proba)) if len(np.unique(y_hold)) > 1 else None
-        pr_auc = float(average_precision_score(y_hold, proba)) if len(np.unique(y_hold)) > 1 else None
-        f1 = float(f1_score(y_hold, pred, zero_division=0))
-        precision = float(precision_score(y_hold, pred, zero_division=0))
-        recall = float(recall_score(y_hold, pred, zero_division=0))
+        thr, holdout_mape = best_threshold(y_hold, proba)
 
         mlflow.log_metric("seen_train_rows", int(seen))
-        if roc_auc is not None:
-            mlflow.log_metric("roc_auc", roc_auc)
-        if pr_auc is not None:
-            mlflow.log_metric("pr_auc", pr_auc)
-        mlflow.log_metric("f1", f1)
-        mlflow.log_metric("precision", precision)
-        mlflow.log_metric("recall", recall)
+        mlflow.log_param("threshold", float(thr))
+        mlflow.log_metric("holdout_mape", float(holdout_mape))
 
         os.makedirs("/tmp/ur", exist_ok=True)
         path = "/tmp/ur/model.joblib"
         joblib.dump(
-            {"scaler": scaler, "clf": clf, "features": FEATURE_COLS + ["euclid_dist"]},
+            {"scaler": scaler, "clf": clf, "threshold": float(thr), "features": FEATURE_COLS + ["euclid_dist"]},
             path,
         )
         mlflow.log_artifact(path, artifact_path="model")
@@ -181,20 +183,15 @@ def main() -> None:
                     INSERT INTO mart.ur_model_runs
                       (run_ts, model_name, run_id, train_rows, test_rows, pos_rate, roc_auc, pr_auc, f1, precision, recall)
                     VALUES
-                      (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                      (%s, %s, %s, %s, %s, %s, NULL, NULL, NULL, NULL, NULL)
                     """,
                     (
                         run_ts,
-                        "sgd_streaming",
+                        "sgd_bin_trip_cnt",
                         run.info.run_id,
                         int(seen),
                         int(len(y_hold)),
-                        float(y_hold.mean()),
-                        roc_auc,
-                        pr_auc,
-                        f1,
-                        precision,
-                        recall,
+                        float(holdout_mape),
                     ),
                 )
             conn.commit()

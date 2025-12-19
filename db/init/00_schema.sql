@@ -117,25 +117,6 @@ CREATE TABLE IF NOT EXISTS mart.no_links (
 CREATE INDEX IF NOT EXISTS mart_no_links_start_idx ON mart.no_links (no_start);
 CREATE INDEX IF NOT EXISTS mart_no_links_end_idx ON mart.no_links (no_end);
 
-CREATE TABLE IF NOT EXISTS mart.ur_flow (
-  run_ts TIMESTAMPTZ NOT NULL,
-  a TEXT NOT NULL,
-  b TEXT NOT NULL,
-  taxi_time DOUBLE PRECISION,
-  lt_time   DOUBLE PRECISION,
-  delta     DOUBLE PRECISION,
-  taxi_faster BOOLEAN NOT NULL,
-  taxi_trips DOUBLE PRECISION,
-  lt_trips   DOUBLE PRECISION,
-  PRIMARY KEY (run_ts, a, b)
-);
-
-
-CREATE OR REPLACE VIEW mart.ur_flow_latest AS
-SELECT *
-FROM mart.ur_flow
-WHERE run_ts = (SELECT max(run_ts) FROM mart.ur_flow);
-
 CREATE TABLE IF NOT EXISTS mart.ur_model_runs (
   run_ts TIMESTAMPTZ NOT NULL DEFAULT now(),
   model_name TEXT NOT NULL,
@@ -156,15 +137,12 @@ SELECT *
 FROM mart.ur_model_runs
 WHERE run_ts = (SELECT max(run_ts) FROM mart.ur_model_runs);
 
-CREATE TABLE IF NOT EXISTS mart.ur_link_scores (
-  run_ts      TIMESTAMPTZ NOT NULL,
-  no_start    BIGINT NOT NULL,
-  no_end      BIGINT NOT NULL,
-  p_demand    DOUBLE PRECISION NOT NULL,
-  distance_km DOUBLE PRECISION NOT NULL,
+CREATE TABLE IF NOT EXISTS mart.ur_trip_preds (
+  run_ts TIMESTAMPTZ NOT NULL,
+  no_start BIGINT NOT NULL,
+  no_end   BIGINT NOT NULL,
+  trip_cnt_pred DOUBLE PRECISION NOT NULL,
   PRIMARY KEY (run_ts, no_start, no_end)
 );
-CREATE INDEX IF NOT EXISTS ur_link_scores_no_start_idx ON mart.ur_link_scores (no_start);
-CREATE INDEX IF NOT EXISTS ur_link_scores_no_end_idx ON mart.ur_link_scores (no_end);
-CREATE INDEX IF NOT EXISTS ur_link_scores_p_demand_idx ON mart.ur_link_scores (p_demand);
-
+CREATE INDEX IF NOT EXISTS ur_trip_preds_no_start_idx ON mart.ur_trip_preds (no_start);
+CREATE INDEX IF NOT EXISTS ur_trip_preds_no_end_idx ON mart.ur_trip_preds (no_end);
